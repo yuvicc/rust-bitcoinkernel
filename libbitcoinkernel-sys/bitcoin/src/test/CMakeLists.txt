@@ -23,6 +23,7 @@ add_executable(test_bitcoin
   blockfilter_index_tests.cpp
   blockfilter_tests.cpp
   blockmanager_tests.cpp
+  blocktreestorage_tests.cpp
   bloom_tests.cpp
   bswap_tests.cpp
   btcsignals_tests.cpp
@@ -81,6 +82,7 @@ add_executable(test_bitcoin
   pow_tests.cpp
   prevector_tests.cpp
   private_broadcast_tests.cpp
+  psbt_tests.cpp
   raii_event_tests.cpp
   random_tests.cpp
   rbf_tests.cpp
