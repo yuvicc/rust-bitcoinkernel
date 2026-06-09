@@ -109,9 +109,9 @@ async def make_capnp_init_ctx(self):
     return ctx, init
 
 
-async def mining_create_block_template(mining, stack, ctx, opts):
+async def mining_create_block_template(mining, stack, ctx, *args, **kwargs):
     """Call mining.createNewBlock() and return template, then call template.destroy() when stack exits."""
-    response = await mining.createNewBlock(ctx, opts)
+    response = await mining.createNewBlock(ctx, *args, **kwargs)
     if not response._has("result"):
         return None
     return await stack.enter_async_context(destroying(response.result, ctx))
@@ -162,3 +162,12 @@ async def make_mining_ctx(self):
 def assert_capnp_failed(e, description_prefix):
     assert e.description.startswith(description_prefix), f"Expected description starting with '{description_prefix}', got '{e.description}'"
     assert_equal(e.type, "FAILED")
+
+
+async def assert_create_new_block_fails(ctx, mining, opts, expected_msg):
+    """Assert that mining.createNewBlock fails with the expected remote exception."""
+    try:
+        await mining.createNewBlock(ctx, opts)
+        raise AssertionError("createNewBlock unexpectedly succeeded")
+    except capnp.lib.capnp.KjException as e:
+        assert_capnp_failed(e, f"remote exception: std::exception: {expected_msg}")

@@ -7,7 +7,7 @@
 
 #include <consensus/amount.h>
 #include <interfaces/types.h>
-#include <node/types.h>
+#include <node/mining_types.h>
 #include <primitives/block.h>
 #include <primitives/transaction.h>
 #include <uint256.h>
@@ -16,14 +16,12 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 namespace node {
 struct NodeContext;
 } // namespace node
-
-class BlockValidationState;
-class CScript;
 
 namespace interfaces {
 
@@ -34,7 +32,8 @@ public:
     virtual ~BlockTemplate() = default;
 
     virtual CBlockHeader getBlockHeader() = 0;
-    // Block contains a dummy coinbase transaction that should not be used.
+    // Block contains a dummy coinbase transaction that should not be used and
+    // it may not match a transaction constructed from getCoinbaseTx().
     virtual CBlock getBlock() = 0;
 
     // Fees per transaction, not including coinbase transaction.
@@ -63,6 +62,10 @@ public:
      *
      * @note unlike the submitblock RPC, this method does NOT add the
      *       coinbase witness automatically.
+     *
+     * @note for heights <= 16, the BIP34 height push in getCoinbaseTx().script_sig_prefix
+     *       is only one byte long, so the coinbase scriptSig needs at least
+     *       one additional byte of data to avoid bad-cb-length.
      *
      * @returns if the block was processed, does not necessarily indicate validity.
      *
@@ -156,7 +159,7 @@ public:
 
     //! Get internal node context. Useful for RPC and testing,
     //! but not accessible across processes.
-    virtual node::NodeContext* context() { return nullptr; }
+    virtual const node::NodeContext* context() { return nullptr; }
 };
 
 //! Return implementation of Mining interface.
@@ -164,7 +167,7 @@ public:
 //! @param[in] wait_loaded waits for chainstate data to be loaded before
 //!                        returning. Used to prevent external clients from
 //!                        being able to crash the node during startup.
-std::unique_ptr<Mining> MakeMining(node::NodeContext& node, bool wait_loaded=true);
+std::unique_ptr<Mining> MakeMining(const node::NodeContext& node, bool wait_loaded=true);
 
 } // namespace interfaces
 

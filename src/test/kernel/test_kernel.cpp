@@ -790,7 +790,6 @@ BOOST_AUTO_TEST_CASE(btck_chainman_tests)
 std::unique_ptr<ChainMan> create_chainman(TestDirectory& test_directory,
                                           bool reindex,
                                           bool wipe_chainstate,
-                                          bool block_tree_db_in_memory,
                                           bool chainstate_db_in_memory,
                                           Context& context)
 {
@@ -801,9 +800,6 @@ std::unique_ptr<ChainMan> create_chainman(TestDirectory& test_directory,
     }
     if (wipe_chainstate) {
         chainman_opts.SetWipeDbs(/*wipe_block_tree=*/false, /*wipe_chainstate=*/wipe_chainstate);
-    }
-    if (block_tree_db_in_memory) {
-        chainman_opts.UpdateBlockTreeDbInMemory(block_tree_db_in_memory);
     }
     if (chainstate_db_in_memory) {
         chainman_opts.UpdateChainstateDbInMemory(chainstate_db_in_memory);
@@ -819,7 +815,7 @@ void chainman_reindex_test(TestDirectory& test_directory)
     auto context{create_context(notifications, ChainType::MAINNET)};
     auto chainman{create_chainman(
         test_directory, /*reindex=*/true, /*wipe_chainstate=*/false,
-        /*block_tree_db_in_memory=*/false, /*chainstate_db_in_memory=*/false, context)};
+        /*chainstate_db_in_memory=*/false, context)};
 
     std::vector<std::string> import_files;
     BOOST_CHECK(chainman->ImportBlocks(import_files));
@@ -864,7 +860,7 @@ void chainman_reindex_chainstate_test(TestDirectory& test_directory)
     auto context{create_context(notifications, ChainType::MAINNET)};
     auto chainman{create_chainman(
         test_directory, /*reindex=*/false, /*wipe_chainstate=*/true,
-        /*block_tree_db_in_memory=*/false, /*chainstate_db_in_memory=*/false, context)};
+        /*chainstate_db_in_memory=*/false, context)};
 
     std::vector<std::string> import_files;
     import_files.push_back(PathToString(test_directory.m_directory / "blocks" / "blk00000.dat"));
@@ -878,7 +874,7 @@ void chainman_mainnet_validation_test(TestDirectory& test_directory)
     auto context{create_context(notifications, ChainType::MAINNET, validation_interface)};
     auto chainman{create_chainman(
         test_directory, /*reindex=*/false, /*wipe_chainstate=*/false,
-        /*block_tree_db_in_memory=*/false, /*chainstate_db_in_memory=*/false, context)};
+        /*chainstate_db_in_memory=*/false, context)};
 
     // mainnet block 1
     auto raw_block = hex_string_to_byte_vec("010000006fe28c0ab6f1b372c1a6a246ae63f74f931e8365e15a089c68d6190000000000982051fd1e4ba744bbbe680e1fee14677ba1a3c3540bf7b1cdb606e857233e0e61bc6649ffff001d01e362990101000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0704ffff001d0104ffffffff0100f2052a0100000043410496b538e853519c726a2c91e61ec11600ae1390813a627c66fb8be7947be63c52da7589379515d4e0a604f8141781e62294721166bf621e73a82cbf2342c858eeac00000000");
@@ -1026,7 +1022,6 @@ BOOST_AUTO_TEST_CASE(btck_block_tree_entry_tests)
         test_directory,
         /*reindex=*/false,
         /*wipe_chainstate=*/false,
-        /*block_tree_db_in_memory=*/true,
         /*chainstate_db_in_memory=*/true,
         context)};
 
@@ -1072,7 +1067,7 @@ BOOST_AUTO_TEST_CASE(btck_chainman_in_memory_tests)
     auto context{create_context(notifications, ChainType::REGTEST)};
     auto chainman{create_chainman(
         in_memory_test_directory, /*reindex=*/false, /*wipe_chainstate=*/false,
-        /*block_tree_db_in_memory=*/true, /*chainstate_db_in_memory=*/true, context)};
+        /*chainstate_db_in_memory=*/true, context)};
 
     for (auto& raw_block : REGTEST_BLOCK_DATA) {
         Block block{hex_string_to_byte_vec(raw_block)};
@@ -1082,7 +1077,7 @@ BOOST_AUTO_TEST_CASE(btck_chainman_in_memory_tests)
     }
 
     BOOST_CHECK(fs::exists(in_memory_test_directory.m_directory / "blocks"));
-    BOOST_CHECK(!fs::exists(in_memory_test_directory.m_directory / "blocks" / "index"));
+    BOOST_CHECK(fs::exists(in_memory_test_directory.m_directory / "blocks" / "index"));
     BOOST_CHECK(!fs::exists(in_memory_test_directory.m_directory / "chainstate"));
 
     BOOST_CHECK(context.interrupt());
@@ -1098,14 +1093,13 @@ BOOST_AUTO_TEST_CASE(btck_chainman_regtest_tests)
     {
         auto chainman{create_chainman(
             test_directory, /*reindex=*/false, /*wipe_chainstate=*/false,
-            /*block_tree_db_in_memory=*/false, /*chainstate_db_in_memory=*/false, context)};
+            /*chainstate_db_in_memory=*/false, context)};
         for (const auto& data : REGTEST_BLOCK_DATA) {
             Block block{hex_string_to_byte_vec(data)};
             BlockHeader header = block.GetHeader();
-            BlockValidationState state{};
-            BOOST_CHECK(state.GetBlockValidationResult() == BlockValidationResult::UNSET);
-            BOOST_CHECK(chainman->ProcessBlockHeader(header, state));
+            BlockValidationState state = chainman->ProcessBlockHeader(header);
             BOOST_CHECK(state.GetValidationMode() == ValidationMode::VALID);
+            BOOST_CHECK(state.GetBlockValidationResult() == BlockValidationResult::UNSET);
             BlockTreeEntry entry{*chainman->GetBlockTreeEntry(header.Hash())};
             BOOST_CHECK(!chainman->GetChain().Contains(entry));
             BlockTreeEntry best_entry{chainman->GetBestEntry()};
@@ -1122,7 +1116,7 @@ BOOST_AUTO_TEST_CASE(btck_chainman_regtest_tests)
     {
         auto chainman{create_chainman(
             test_directory, /*reindex=*/false, /*wipe_chainstate=*/false,
-            /*block_tree_db_in_memory=*/false, /*chainstate_db_in_memory=*/false, context)};
+            /*chainstate_db_in_memory=*/false, context)};
         for (size_t i{0}; i < mid; i++) {
             Block block{hex_string_to_byte_vec(REGTEST_BLOCK_DATA[i])};
             bool new_block{false};
@@ -1133,7 +1127,7 @@ BOOST_AUTO_TEST_CASE(btck_chainman_regtest_tests)
 
     auto chainman{create_chainman(
         test_directory, /*reindex=*/false, /*wipe_chainstate=*/false,
-        /*block_tree_db_in_memory=*/false, /*chainstate_db_in_memory=*/false, context)};
+        /*chainstate_db_in_memory=*/false, context)};
 
     for (size_t i{mid}; i < REGTEST_BLOCK_DATA.size(); i++) {
         Block block{hex_string_to_byte_vec(REGTEST_BLOCK_DATA[i])};
@@ -1220,15 +1214,15 @@ BOOST_AUTO_TEST_CASE(btck_chainman_regtest_tests)
     // Validate coin properties
     TransactionOutputView output = coin.GetOutput();
     uint32_t coin_height = coin.GetConfirmationHeight();
-    BOOST_CHECK_EQUAL(coin_height, 205);
-    BOOST_CHECK_EQUAL(output.Amount(), 100000000);
+    BOOST_CHECK_EQUAL(coin_height, 143);
+    BOOST_CHECK_EQUAL(output.Amount(), 3949990974);
 
     // Test script pubkey serialization
     auto script_pubkey = output.GetScriptPubkey();
     auto script_pubkey_bytes{script_pubkey.ToBytes()};
-    BOOST_CHECK_EQUAL(script_pubkey_bytes.size(), 22);
+    BOOST_CHECK_EQUAL(script_pubkey_bytes.size(), 34);
     auto round_trip_script_pubkey{ScriptPubkey(script_pubkey_bytes)};
-    BOOST_CHECK_EQUAL(round_trip_script_pubkey.ToBytes().size(), 22);
+    BOOST_CHECK_EQUAL(round_trip_script_pubkey.ToBytes().size(), 34);
 
     for (const auto tx_spent_outputs : block_spent_outputs.TxsSpentOutputs()) {
         for (const auto coins : tx_spent_outputs.Coins()) {
@@ -1265,4 +1259,129 @@ BOOST_AUTO_TEST_CASE(btck_chainman_regtest_tests)
     BOOST_CHECK(!chainman->ReadBlock(tip_2).has_value());
     fs::remove(test_directory.m_directory / "blocks" / "rev00000.dat");
     BOOST_CHECK_THROW(chainman->ReadBlockSpentOutputs(tip), std::runtime_error);
+}
+
+// -----------------------------------------------------------------------------
+// CheckTransaction tests
+//
+// Transaction hex below is copied from src/test/data/tx_invalid.json (entries
+// marked "BADTX") and tx_valid.json. CheckTransaction performs only basic context-free
+// consensus checks and can only produce two outcomes:
+//   - VALID  (ValidationMode::VALID, TxValidationResult::UNSET)
+//   - INVALID (ValidationMode::INVALID, TxValidationResult::CONSENSUS)
+// Other TxValidationResult values are set by higher-level validation and are
+// not reachable through btck_transaction_check.
+// -----------------------------------------------------------------------------
+BOOST_AUTO_TEST_CASE(btck_transaction_check_tests)
+{
+    using namespace btck;
+
+    constexpr std::string_view valid_tx_hex{
+        "01000000010001000000000000000000000000000000000000000000000000000000000000"
+        "000000006a473044022067288ea50aa799543a536ff9306f8e1cba05b9c6b10951175b92"
+        "4f96732555ed022026d7b5265f38d21541519e4a1e55044d5b9e17e15cdbaf29ae3792e9"
+        "9e883e7a012103ba8c8b86dea131c22ab967e6dd99bdae8eff7a1f75a2c35f1f944109e3"
+        "fe5e22ffffffff010000000000000000015100000000"};
+    constexpr std::string_view no_outputs_tx_hex{
+        "01000000010001000000000000000000000000000000000000000000000000000000000000"
+        "000000006d483045022100f16703104aab4e4088317c862daec83440242411b039d14280e0"
+        "3dd33b487ab802201318a7be236672c5c56083eb7a5a195bc57a40af7923ff8545016cd3b5"
+        "71e2a601232103c40e5d339df3f30bf753e7e04450ae4ef76c9e45587d1d993bdc4cd06f06"
+        "51c7acffffffff0000000000"};
+
+    auto expect_valid = [](std::string_view hex) {
+        Transaction tx{hex_string_to_byte_vec(hex)};
+        TxValidationState st;
+        BOOST_CHECK(CheckTransaction(tx, st));
+        BOOST_CHECK(st.GetValidationMode() == ValidationMode::VALID);
+        BOOST_CHECK(st.GetTxValidationResult() == TxValidationResult::UNSET);
+    };
+
+    auto expect_invalid = [](std::string_view hex) {
+        Transaction tx{hex_string_to_byte_vec(hex)};
+        TxValidationState st;
+        BOOST_CHECK(!CheckTransaction(tx, st));
+        BOOST_CHECK(st.GetValidationMode() == ValidationMode::INVALID);
+        BOOST_CHECK(st.GetTxValidationResult() == TxValidationResult::CONSENSUS);
+    };
+
+    // Valid: simple 1-in 1-out transaction (from tx_valid.json)
+    expect_valid(valid_tx_hex);
+
+    // Valid coinbase with scriptSig size 2 (from tx_valid.json)
+    expect_valid(
+        "01000000010000000000000000000000000000000000000000000000000000000000000000"
+        "ffffffff025151ffffffff010000000000000000015100000000");
+
+    // No outputs (BADTX from tx_invalid.json)
+    expect_invalid(no_outputs_tx_hex);
+
+    {
+        Transaction valid_tx{hex_string_to_byte_vec(valid_tx_hex)};
+        Transaction invalid_tx{hex_string_to_byte_vec(no_outputs_tx_hex)};
+        TxValidationState state;
+
+        BOOST_CHECK(btck_transaction_check(valid_tx.get(), state.get()) == 1);
+        BOOST_CHECK(state.GetValidationMode() == ValidationMode::VALID);
+        BOOST_CHECK(state.GetTxValidationResult() == TxValidationResult::UNSET);
+
+        BOOST_CHECK(btck_transaction_check(invalid_tx.get(), state.get()) == 0);
+        BOOST_CHECK(state.GetValidationMode() == ValidationMode::INVALID);
+        BOOST_CHECK(state.GetTxValidationResult() == TxValidationResult::CONSENSUS);
+    }
+
+    // Negative output (BADTX)
+    expect_invalid(
+        "01000000010001000000000000000000000000000000000000000000000000000000000000"
+        "000000006d4830450220063222cbb128731fc09de0d7323746539166544d6c1df84d867cce"
+        "a84bcc8903022100bf568e8552844de664cd41648a031554327aa8844af34b4f27397c65b9"
+        "2c04de0123210243ec37dee0e2e053a9c976f43147e79bc7d9dc606ea51010af1ac80db6b0"
+        "69e1acffffffff01ffffffffffffffff015100000000");
+
+    // MAX_MONEY + 1 output (BADTX)
+    expect_invalid(
+        "01000000010001000000000000000000000000000000000000000000000000000000000000"
+        "000000006e493046022100e1eadba00d9296c743cb6ecc703fd9ddc9b3cd12906176a226ae"
+        "4c18d6b00796022100a71aef7d2874deff681ba6080f1b278bac7bb99c61b08a85f4311970"
+        "ffe7f63f012321030c0588dc44d92bdcbf8e72093466766fdc265ead8db64517b0c542275b"
+        "70fffbacffffffff010140075af0750700015100000000");
+
+    // MAX_MONEY output + 1 output: sum exceeds MAX_MONEY (BADTX)
+    expect_invalid(
+        "01000000010001000000000000000000000000000000000000000000000000000000000000"
+        "000000006d483045022027deccc14aa6668e78a8c9da3484fbcd4f9dcc9bb7d1b85146314b"
+        "21b9ae4d86022100d0b43dece8cfb07348de0ca8bc5b86276fa88f7f2138381128b7c36ab2"
+        "e42264012321029bb13463ddd5d2cc05da6e84e37536cb9525703cfd8f43afdb414988987a"
+        "92f6acffffffff020040075af075070001510001000000000000015100000000");
+
+    // Duplicate inputs (BADTX)
+    expect_invalid(
+        "01000000020001000000000000000000000000000000000000000000000000000000000000"
+        "000000006c47304402204bb1197053d0d7799bf1b30cd503c44b58d6240cccbdc85b6fe76d"
+        "087980208f02204beeed78200178ffc6c74237bb74b3f276bbb4098b5605d814304fe128bf"
+        "1431012321039e8815e15952a7c3fada1905f8cf55419837133bd7756c0ef14fc8dfe50c0d"
+        "eaacffffffff0001000000000000000000000000000000000000000000000000000000000000"
+        "000000006c47304402202306489afef52a6f62e90bf750bbcdf40c06f5c6b138286e6b6b8617"
+        "6bb9341802200dba98486ea68380f47ebb19a7df173b99e6bc9c681d6ccf3bde31465d1f16"
+        "b3012321039e8815e15952a7c3fada1905f8cf55419837133bd7756c0ef14fc8dfe50c0dea"
+        "acffffffff010000000000000000015100000000");
+
+    // Coinbase with scriptSig size 1: too small (BADTX)
+    expect_invalid(
+        "01000000010000000000000000000000000000000000000000000000000000000000000000"
+        "ffffffff0151ffffffff010000000000000000015100000000");
+
+    // Coinbase with scriptSig size 101: too large (BADTX)
+    expect_invalid(
+        "01000000010000000000000000000000000000000000000000000000000000000000000000"
+        "ffffffff6551515151515151515151515151515151515151515151515151515151515151515151"
+        "515151515151515151515151515151515151515151515151515151515151515151515151515151"
+        "51515151515151515151515151515151515151515151515151515151ffffffff01000000000000"
+        "0000015100000000");
+
+    // Null prevout in non-coinbase: two inputs, one is null (BADTX)
+    expect_invalid(
+        "01000000020000000000000000000000000000000000000000000000000000000000000000"
+        "ffffffff00ffffffff000100000000000000000000000000000000000000000000000000000000"
+        "00000000000000ffffffff010000000000000000015100000000");
 }
