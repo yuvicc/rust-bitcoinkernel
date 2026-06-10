@@ -574,11 +574,6 @@ extern "C" {
         wipe_chainstate_db: c_int,
     ) -> c_int;
 
-    pub fn btck_chainstate_manager_options_update_block_tree_db_in_memory(
-        chainstate_manager_options: *mut btck_ChainstateManagerOptions,
-        block_tree_db_in_memory: c_int,
-    );
-
     pub fn btck_chainstate_manager_options_update_chainstate_db_in_memory(
         chainstate_manager_options: *mut btck_ChainstateManagerOptions,
         chainstate_db_in_memory: c_int,

@@ -35,7 +35,6 @@ use libbitcoinkernel_sys::{
     btck_chainstate_manager_options_create, btck_chainstate_manager_options_destroy,
     btck_chainstate_manager_options_set_wipe_dbs,
     btck_chainstate_manager_options_set_worker_threads_num,
-    btck_chainstate_manager_options_update_block_tree_db_in_memory,
     btck_chainstate_manager_options_update_chainstate_db_in_memory,
     btck_chainstate_manager_process_block, btck_chainstate_manager_process_block_header,
 };
@@ -496,7 +495,6 @@ impl Drop for ChainstateManager {
 /// let chainman = ChainstateManager::builder(&context, "/data", "/blocks")?
 ///     .worker_threads(4)
 ///     .chainstate_db_in_memory(true)
-///     .block_tree_db_in_memory(true)
 ///     .build()?;
 /// # Ok(())
 /// # }
@@ -618,25 +616,6 @@ impl ChainstateManagerBuilder {
         }
     }
 
-    /// Configures the block tree database to run entirely in memory.
-    ///
-    /// When enabled, the block tree database (which stores the block index and
-    /// metadata about all known blocks) will be stored in RAM rather than on disk.
-    /// This can improve performance but requires sufficient memory and means the
-    /// database will be lost when the process exits.
-    ///
-    /// # Arguments
-    /// * `block_tree_db_in_memory` - If true, run the block tree database in memory
-    pub fn block_tree_db_in_memory(self, block_tree_db_in_memory: bool) -> Self {
-        unsafe {
-            btck_chainstate_manager_options_update_block_tree_db_in_memory(
-                self.inner,
-                c_helpers::to_c_bool(block_tree_db_in_memory),
-            );
-        }
-        self
-    }
-
     /// Configures the chainstate database to run entirely in memory.
     ///
     /// When enabled, the chainstate database (which stores the current UTXO set)
@@ -752,7 +731,6 @@ mod tests {
         let chainman =
             ChainstateManagerBuilder::new(&context, test_dir.data_dir(), test_dir.blocks_dir())
                 .unwrap()
-                .block_tree_db_in_memory(true)
                 .chainstate_db_in_memory(true)
                 .wipe_db(false, true)
                 .unwrap()
